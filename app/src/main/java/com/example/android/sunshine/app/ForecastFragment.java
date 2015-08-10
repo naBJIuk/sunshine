@@ -1,8 +1,11 @@
 package com.example.android.sunshine.app;
 
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.text.format.Time;
 import android.util.Log;
@@ -15,7 +18,6 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -28,8 +30,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A placeholder fragment containing a simple view.
@@ -51,24 +51,22 @@ public class ForecastFragment extends Fragment implements AdapterView.OnItemClic
     }
 
     @Override
+    public void onStart() {
+        super.onStart();
+
+        updateWeather();
+    }
+
+    @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        String[] fakeDataArray = {
-                "Today - Sunny - 88/63",
-                "Tomorrow - Foggy - 70/46",
-                "Weds - Cloudy - 72/63",
-                "Thurs - Rainy - 64/51",
-                "Fri - Foggy - 70/46",
-                "Sat - Sunny - 76/68"
-        };
-        List<String> forecastList = new ArrayList<>(Arrays.asList(fakeDataArray));
 
         View rootView = inflater.inflate(R.layout.fr_main, container, false);
         mForecastAdapter = new ArrayAdapter<>(
                 getActivity(),
                 R.layout.list_item_forecast,
                 R.id.list_item_forecast_textview,
-                forecastList
+                new ArrayList<String>()
         );
 
         ListView listView = (ListView) rootView.findViewById(R.id.listview_forecast);
@@ -80,14 +78,14 @@ public class ForecastFragment extends Fragment implements AdapterView.OnItemClic
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-        inflater.inflate(R.menu.forecastfragment, menu);
+        inflater.inflate(R.menu.fr_forecast, menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_refresh:
-                updateFromNetwork();
+                updateWeather();
                 return true;
         }
 
@@ -97,34 +95,18 @@ public class ForecastFragment extends Fragment implements AdapterView.OnItemClic
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         String weather = mForecastAdapter.getItem(position);
-        Toast.makeText(getActivity(), weather, Toast.LENGTH_SHORT).show();
+
+        startActivity(new Intent(getActivity(), DetailActivity.class).putExtra(Intent.EXTRA_TEXT, weather));
     }
 
-    private void updateFromNetwork() {
+    private void updateWeather() {
+        String location = PreferenceManager.getDefaultSharedPreferences(getActivity())
+                .getString(
+                        getString(R.string.pref_location_key),
+                        getString(R.string.pref_location_default)
+                );
         FetchWeatherTask updateTask = new FetchWeatherTask();
-        updateTask.execute("94043");
-    }
-
-    /* The date/time conversion code is going to be moved outside the asynctask later,
-             * so for convenience we're breaking it out into its own method now.
-             */
-    private String getReadableDateString(long time){
-        // Because the API returns a unix timestamp (measured in seconds),
-        // it must be converted to milliseconds in order to be converted to valid date.
-        SimpleDateFormat shortenedDateFormat = new SimpleDateFormat("EEE MMM dd");
-        return shortenedDateFormat.format(time);
-    }
-
-    /**
-     * Prepare the weather high/lows for presentation.
-     */
-    private String formatHighLows(double high, double low) {
-        // For presentation, assume the user doesn't care about tenths of a degree.
-        long roundedHigh = Math.round(high);
-        long roundedLow = Math.round(low);
-
-        String highLowStr = roundedHigh + "/" + roundedLow;
-        return highLowStr;
+        updateTask.execute(location);
     }
 
     /**
@@ -197,11 +179,40 @@ public class ForecastFragment extends Fragment implements AdapterView.OnItemClic
             resultStrs[i] = day + " - " + description + " - " + highAndLow;
         }
 
-        for (String s : resultStrs) {
-            Log.v(LOG_TAG, "Forecast entry: " + s);
-        }
         return resultStrs;
+    }
 
+    private String getReadableDateString(long time){
+        // Because the API returns a unix timestamp (measured in seconds),
+        // it must be converted to milliseconds in order to be converted to valid date.
+        SimpleDateFormat shortenedDateFormat = new SimpleDateFormat("EEE MMM dd");
+        return shortenedDateFormat.format(time);
+    }
+
+    /**
+     * Prepare the weather high/lows for presentation.
+     */
+    private String formatHighLows(double high, double low) {
+        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String unitsType = sharedPreferences.getString(
+                getString(R.string.pref_units_key),
+                getString(R.string.pref_units_metric)
+        );
+
+        // For presentation, assume the user doesn't care about tenths of a degree.
+        long roundedHigh;
+        long roundedLow;
+
+        if (unitsType.equalsIgnoreCase(getString(R.string.pref_units_imperial))) {
+            roundedHigh = Math.round(high * 1.8 + 32);
+            roundedLow = Math.round(low * 1.8 + 32);
+        } else {
+            roundedHigh = Math.round(high);
+            roundedLow = Math.round(low);
+        }
+
+        String highLowStr = roundedHigh + "/" + roundedLow;
+        return highLowStr;
     }
 
     private class FetchWeatherTask extends AsyncTask<String, Void, String[]> {
