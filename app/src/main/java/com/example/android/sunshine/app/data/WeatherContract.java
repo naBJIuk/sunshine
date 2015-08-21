@@ -22,6 +22,10 @@ import android.provider.BaseColumns;
 import android.text.TextUtils;
 import android.text.format.Time;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 /**
  * Defines table and column names for the weather database.
  */
@@ -32,6 +36,10 @@ public class WeatherContract {
     public static final String PATH_WEATHER = "weather";
     public static final String PATH_LOCATION = "location";
 
+    // Format used for storing dates in the database.  ALso used for converting those strings
+    // back into date objects for comparison/processing.
+    public static final String DATE_FORMAT = "yyyyMMdd";
+
     // To make it easy to query for the exact date, we normalize all dates that go into
     // the database to the start of the the Julian day at UTC.
     public static long normalizeDate(long startDate) {
@@ -40,6 +48,21 @@ public class WeatherContract {
         time.set(startDate);
         int julianDay = Time.getJulianDay(startDate, time.gmtoff);
         return time.setJulianDay(julianDay);
+    }
+
+    /**
+     * Converts a dateText to a long Unix time representation
+     * @param dateText the input date string
+     * @return the Date object
+     */
+    public static Date getDateFromDb(String dateText) {
+        SimpleDateFormat dbDateFormat = new SimpleDateFormat(DATE_FORMAT);
+        try {
+            return dbDateFormat.parse(dateText);
+        } catch ( ParseException e ) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /*
