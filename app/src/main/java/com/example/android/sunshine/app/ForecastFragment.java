@@ -1,6 +1,7 @@
 package com.example.android.sunshine.app;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -8,6 +9,7 @@ import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -18,6 +20,7 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 
 import com.example.android.sunshine.app.data.WeatherContract;
+import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
 
 /**
  * A placeholder fragment containing a simple view.
@@ -130,23 +133,21 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.fr_forecast, menu);
+
+        super.onCreateOptionsMenu(menu, inflater);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.action_refresh:
-                updateWeather();
-                return true;
+        if (item.getItemId() == R.id.action_map) {
+            openPreferredLocationMap();
         }
 
         return super.onOptionsItemSelected(item);
     }
 
     private void updateWeather() {
-        String location = Utility.getPreferredLocation(getActivity());
-        FetchWeatherTask updateTask = new FetchWeatherTask(getActivity());
-        updateTask.execute(location);
+        SunshineSyncAdapter.syncImmediately(getActivity());
     }
 
     void setUseTodayLayout(boolean useTodayLayout) {
@@ -211,4 +212,24 @@ public class ForecastFragment extends Fragment implements LoaderManager.LoaderCa
             mActivity.onItemSelected(dateUri);
         }
     }
+
+    private void openPreferredLocationMap() {
+        if (null != mForecastAdapter) {
+            Cursor c = mForecastAdapter.getCursor();
+
+            if (null != c) {
+                c.moveToPosition(0);
+                String posLat = c.getString(COL_COORD_LAT);
+                String posLong = c.getString(COL_COORD_LONG);
+
+                Uri geoLocation = Uri.parse("geo:" + posLat + "," + posLong);
+                Intent intent = new Intent(Intent.ACTION_VIEW, geoLocation);
+
+                if (intent.resolveActivity(getActivity().getPackageManager()) != null) {
+                    startActivity(intent);
+                } Log.d(LOG_TAG, "No activity for intent");
+            }
+        }
+    }
+
 }
